@@ -1,6 +1,6 @@
 # AI usage
 
-The application was built in Cursor with the coding agent (Grok 4.7). The agent wrote the API, the React app, the tests, Docker, CI, and these notes. Vishal's assignment brief was the source of the requirements. No other AI tool was used.
+The application was built in Cursor with the coding agent (Grok 4.7). The agent wrote the API, the React app, the tests, Docker, CI, and these notes. Assignment brief was the source of the requirements. No other AI tool was used.
 
 ## How the tool was used
 
