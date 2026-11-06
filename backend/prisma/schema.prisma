@@ -1,0 +1,137 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  MEMBER
+  PROFESSIONAL
+}
+
+enum SessionStatus {
+  BOOKED
+  CANCELLED
+}
+
+enum ReminderType {
+  HOURS_24
+  HOUR_1
+}
+
+enum ReminderStatus {
+  PENDING
+  PROCESSING
+  DELIVERED
+  CANCELLED
+  FAILED
+}
+
+model User {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String
+  email          String   @unique
+  passwordHash   String   @map("password_hash")
+  role           Role
+  timezone       String
+  title          String?
+  bio            String?
+  focusAreas     String?  @map("focus_areas")
+  sessionVersion Int      @default(0) @map("session_version")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  availability         Availability[]
+  memberSessions       Session[]      @relation("MemberSessions")
+  professionalSessions Session[]      @relation("ProfessionalSessions")
+  cancelledSessions    Session[]      @relation("CancelledSessions")
+  reminders            Reminder[]
+  notifications        Notification[]
+
+  @@index([role])
+  @@map("users")
+}
+
+/// Weekly wall-clock hours in the professional's IANA timezone.
+/// dayOfWeek is ISO: 1 = Monday ... 7 = Sunday.
+model Availability {
+  id             String   @id @default(uuid()) @db.Uuid
+  professionalId String   @map("professional_id") @db.Uuid
+  dayOfWeek      Int      @map("day_of_week")
+  startTime      String   @map("start_time")
+  endTime        String   @map("end_time")
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  professional User @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([professionalId, dayOfWeek])
+  @@map("availability")
+}
+
+model Session {
+  id             String        @id @default(uuid()) @db.Uuid
+  memberId       String        @map("member_id") @db.Uuid
+  professionalId String        @map("professional_id") @db.Uuid
+  startAt        DateTime      @map("start_at") @db.Timestamptz(3)
+  endAt          DateTime      @map("end_at") @db.Timestamptz(3)
+  status         SessionStatus @default(BOOKED)
+  cancelledAt    DateTime?     @map("cancelled_at") @db.Timestamptz(3)
+  cancelledById  String?       @map("cancelled_by_id") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  member       User       @relation("MemberSessions", fields: [memberId], references: [id], onDelete: Restrict)
+  professional User       @relation("ProfessionalSessions", fields: [professionalId], references: [id], onDelete: Restrict)
+  cancelledBy  User?      @relation("CancelledSessions", fields: [cancelledById], references: [id], onDelete: SetNull)
+  reminders    Reminder[]
+
+  @@index([memberId, status, startAt])
+  @@index([professionalId, status, startAt])
+  @@index([status, endAt])
+  @@map("sessions")
+}
+
+model Reminder {
+  id          String         @id @default(uuid()) @db.Uuid
+  sessionId   String         @map("session_id") @db.Uuid
+  recipientId String         @map("recipient_id") @db.Uuid
+  type        ReminderType
+  scheduledAt DateTime       @map("scheduled_at") @db.Timestamptz(3)
+  status      ReminderStatus @default(PENDING)
+  deliveredAt DateTime?      @map("delivered_at") @db.Timestamptz(3)
+  attempts    Int            @default(0)
+  lockedAt    DateTime?      @map("locked_at") @db.Timestamptz(3)
+  lastError   String?        @map("last_error")
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  session      Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  recipient    User          @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  notification Notification?
+
+  @@index([status, scheduledAt])
+  @@index([sessionId, status])
+  @@map("reminders")
+}
+
+model Notification {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  reminderId String    @unique @map("reminder_id") @db.Uuid
+  message    String
+  readAt     DateTime? @map("read_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reminder Reminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@map("notifications")
+}

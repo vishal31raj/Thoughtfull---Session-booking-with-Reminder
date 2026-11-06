@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: thoughtfull
+          POSTGRES_PASSWORD: thoughtfull
+          POSTGRES_DB: thoughtfull
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U thoughtfull -d thoughtfull"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Create the test database
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          PGPASSWORD=thoughtfull psql -h localhost -U thoughtfull -d thoughtfull -c "CREATE DATABASE thoughtfull_test;"
+      - name: Install, check, test, and build the API
+        working-directory: backend
+        env:
+          TEST_DATABASE_URL: postgresql://thoughtfull:thoughtfull@localhost:5432/thoughtfull_test
+        run: |
+          npm ci
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install, check, test, and build the web app
+        working-directory: frontend
+        run: |
+          npm install
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: thoughtfull
+          POSTGRES_PASSWORD: thoughtfull
+          POSTGRES_DB: thoughtfull
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U thoughtfull -d thoughtfull"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Create the test database
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          PGPASSWORD=thoughtfull psql -h localhost -U thoughtfull -d thoughtfull -c "CREATE DATABASE thoughtfull_test;"
+      - name: Install dependencies
+        run: |
+          npm ci --prefix backend
+          npm install --prefix frontend
+          npx --prefix frontend playwright install --with-deps chromium
+      - name: Run the booking flow
+        working-directory: frontend
+        env:
+          TEST_DATABASE_URL: postgresql://thoughtfull:thoughtfull@localhost:5432/thoughtfull_test
+        run: npm run test:e2e

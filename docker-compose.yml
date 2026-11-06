@@ -1,0 +1,82 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: thoughtfull
+      POSTGRES_PASSWORD: thoughtfull
+      POSTGRES_DB: thoughtfull
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U thoughtfull -d thoughtfull"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  api:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql://thoughtfull:thoughtfull@postgres:5432/thoughtfull
+      JWT_SECRET: dev-only-change-me-before-any-real-deployment
+      PORT: 4000
+      NODE_ENV: production
+      CORS_ORIGIN: http://localhost:${WEB_PORT:-8080}
+      COOKIE_SECURE: "false"
+      SESSION_DURATION_MINUTES: 50
+      SLOT_INTERVAL_MINUTES: 60
+      BCRYPT_ROUNDS: 12
+      SEED_ON_START: "true"
+      AUTH_RATE_LIMIT_MAX: 20
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:4000/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 25s
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+    command: ["node", "dist/worker.js"]
+    environment:
+      DATABASE_URL: postgresql://thoughtfull:thoughtfull@postgres:5432/thoughtfull
+      JWT_SECRET: dev-only-change-me-before-any-real-deployment
+      NODE_ENV: production
+      WORKER_POLL_MS: 5000
+      WORKER_BATCH_SIZE: 20
+      WORKER_LOCK_TIMEOUT_MS: 120000
+      WORKER_MAX_ATTEMPTS: 5
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

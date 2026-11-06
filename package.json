@@ -1,0 +1,19 @@
+{
+  "name": "thoughtfull",
+  "private": true,
+  "version": "1.0.0",
+  "description": "ThoughtFull session booking with persistent in-app reminders",
+  "scripts": {
+    "dev": "concurrently -n api,worker,web -c blue,magenta,green \"npm run dev --prefix backend\" \"npm run worker --prefix backend\" \"npm run dev --prefix frontend\"",
+    "test": "npm test --prefix backend && npm test --prefix frontend && npm run test:e2e --prefix frontend",
+    "lint": "npm run lint --prefix backend && npm run lint --prefix frontend",
+    "typecheck": "npm run typecheck --prefix backend && npm run typecheck --prefix frontend",
+    "build": "npm run build --prefix backend && npm run build --prefix frontend",
+    "db:up": "docker compose up -d postgres",
+    "db:migrate": "npm run migrate --prefix backend",
+    "db:seed": "npm run seed --prefix backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
