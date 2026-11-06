@@ -19,3 +19,6 @@ playwright/.cache/
 backend/prisma/*.db
 backend/prisma/*.db-journal
 *.tsbuildinfo
+.gitignore
+package-lock.json
+.github
